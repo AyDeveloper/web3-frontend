@@ -4,7 +4,7 @@ import Styles from "./Header.module.css"
 const Header = ({userInfo, connected, connectWallet}) => {
   return (
     <div className={Styles.root}>
-        <span className={Styles.logo}>WEB3<span className={Styles.logo2}>FRONTEND</span></span>
+        <span className={Styles.logo}>STAKE<span className={Styles.logo2}>NOW</span></span>
         <div className="">
             {connected ? <Connected
               token_balance = {userInfo.token_balance}

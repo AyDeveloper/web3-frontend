@@ -4,7 +4,7 @@ import Styles from './Footer.module.css'
 const Footer = () => {
   return (
     <footer className={Styles.root}>
-        <p className={Styles.text}>Copyright &copy; Web3Bridge {new Date().getFullYear()}</p>
+        <p className={Styles.text}>Copyright &copy; StakeNow {new Date().getFullYear()}</p>
     </footer>
   )
 }

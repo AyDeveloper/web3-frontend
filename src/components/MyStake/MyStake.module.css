@@ -52,6 +52,17 @@
     cursor: pointer;
 }
 
+.check_btn {
+    padding: .8rem 1.2rem;
+    border: 0;
+    background-color: #33ff;
+    border-radius: .3rem;
+    margin-left: 1rem;
+    width: 6rem;
+    color: #fff;
+    cursor: pointer;
+}
+
 .btn_diabled {
     background-color: rgb(168, 164, 164);
     cursor: not-allowed;;

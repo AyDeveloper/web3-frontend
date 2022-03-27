@@ -1,11 +1,14 @@
+/* eslint-disable no-unused-vars */
 import './App.css';
 import Header from './components/header/Header';
 import MyStake from './components/MyStake/MyStake';
 import StakeHistory from './components/StakeHistory/StakeHistory';
+import DispStake from './components/DispStake/DispStake'
 import {useState, useEffect} from 'react'
 import Footer from './components/Footer/Footer';
 import { ethers, utils, Contract } from 'ethers';
 import BRTTokenAbi from './utils/web3/abi.json'
+import { formatDate } from './utils/helpers';
 const BRTTokenAddress = "0x169E82570feAc981780F3C48Ee9f05CED1328e1b";
 
 function App() {
@@ -33,8 +36,39 @@ function App() {
   // the value of token the user wants to withdraw
   const [withdrawInput, setWithdrawInput] = useState("");
 
+  const [checkStakeInput, setcheckStakeInput] = useState("");
+
   // all stake history data displayed on the history table
   const [stateHistory, setStakeHistory] = useState([]);
+
+  const [checkStakeHistory, setCheckState] = useState([]);
+
+  const getTotalStake = async () => {
+    // get the stake of a user to check total stake;
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+    const BRTContractInstance = new Contract(BRTTokenAddress, BRTTokenAbi, signer);
+    const myStakeTx = await  BRTContractInstance.myStake();
+    setStakeAmount(utils.formatUnits(myStakeTx.stakeAmount, 18));
+
+    // calculation of user reward based on time start;
+    const lastestStake = formatDate(myStakeTx.time.toString());
+    const newStakeTime = new Date(lastestStake);
+    const stakeSeconds = Math.floor(newStakeTime.getTime() / 1000);
+
+    // getting the current day in seconds
+    const currentDay = new Date();
+    const currentDaySeconds = Math.floor(currentDay.getTime() / 1000);
+
+    // getting the difference between the lastest stake and the current day
+    const timeDifference = currentDaySeconds - stakeSeconds;
+
+    // showing reward after 3 days otherwise showing 0
+    if (timeDifference >= 20) {
+      const reward = 0.0000000386 * timeDifference * myStakeTx.stakeAmount/ Math.pow(10,18);
+      setRewardAmount(reward.toFixed(2));
+    } else setRewardAmount("0.0");
+  }
 
   // helper function for getting the matic and token balance, given an address
   const getAccountDetails = async (address) => {
@@ -43,6 +77,8 @@ function App() {
       const userMaticBal = await provider.getBalance(address);
       const BRTContractInstance = new Contract(BRTTokenAddress, BRTTokenAbi, provider);
       const userBRTBalance = await BRTContractInstance.balanceOf(address)
+      await getTotalStake();
+
       return {userBRTBalance, userMaticBal}
     }catch(err) {
       console.log(err)
@@ -62,6 +98,7 @@ function App() {
         address: accounts[0]
       })
       setConnected(true)
+
     }else {
       setConnected(false)
       setUserInfo({
@@ -82,7 +119,7 @@ function App() {
         token_balance: 0,
         address: null
       })
-      
+
       return alert("You are connected to the wrong network, please switch to polygon mumbai")
     }else {
       const provider = new ethers.providers.Web3Provider(window.ethereum);
@@ -95,6 +132,8 @@ function App() {
           address: accounts[0]
         })
         setConnected(true)
+        await getTotalStake();
+
       }
   }
 
@@ -112,6 +151,8 @@ function App() {
         address: accounts[0]
       })
       setConnected(true)
+      await getTotalStake();
+
   }
 
   // a function for fetching necesary data from the contract and also listening for contract event when the page loads
@@ -176,36 +217,97 @@ function App() {
       case "unstake":
         setWithdrawInput(target.value);
         break;
+      
+      case "check":
+          setcheckStakeInput(target.value);
+          break;
     
       default:
         break;
     }
   }
 
+
   // A function that handles staking
   const onClickStake = async (e) => {
     e.preventDefault()
-    if(stakeInput < 0) return alert("you cannot stake less than 0 BRT")
+    if(stakeInput < 0) return alert("you cannot stake less than 0 BRT");
 
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     const signer = provider.getSigner();
     const BRTContractInstance = new Contract(BRTTokenAddress, BRTTokenAbi, signer);
     const weiValue = utils.parseEther(stakeInput);
     const stakeTx = await BRTContractInstance.stakeBRT(weiValue);
-
-    const stakeTxHash = await provider.getTransaction(stakeTx.hash)
+    setStakeInput("");
+    // const stakeTxHash = await provider.getTransaction(stakeTx.hash)
     const response = await stakeTx.wait();
+    await getTotalStake();
 
     const address = response.events[1].args[0]
     const amountStaked = response.events[1].args[1].toString()
     const time = response.events[1].args[2].toString()
-
     
   }
+// A function that handles unstaking
+  const onClickWithdraw = async (e) => {
+    e.preventDefault();
+    // checks the balance of the user before passing the input to the withdraw function
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+    const accounts = await provider.listAccounts();
+    const BRTContractInstance = new Contract(BRTTokenAddress, BRTTokenAbi, provider);
+    const userBRTBalance = await BRTContractInstance.balanceOf(accounts[0]);
+    const  balanceuser = userBRTBalance.toString() / Math.pow(10,18);
+    // checks if the withdrawInput is less than balanceofuser
+    if (withdrawInput < balanceuser) {
+      const weiValue = utils.parseEther(withdrawInput);
+      const BRTContractInstance = new Contract(BRTTokenAddress, BRTTokenAbi, signer);
 
-  const onClickWithdraw = (e) => {
-    e.preventDefault()
-    console.log("unstaking...........", withdrawInput);
+      const withdrawTx = await BRTContractInstance.withdraw(weiValue);
+
+      const withdrawTxHash = await provider.getTransaction(withdrawTx.hash)
+      const response = await withdrawTxHash.wait();
+      await getTotalStake()
+      console.log(response);    
+
+    } alert("Insuffient Funds :(")
+
+  }
+
+  // A function that handles checking user stake on pass address
+  const onClickCheckStake = async (e) => {
+    e.preventDefault();
+    // gets a provider that enable us access the blockchain even without being connected
+    const customProvider = new ethers.providers.JsonRpcProvider(process.env.REACT_APP_RPC_URL)
+    // this gets the instance of the already deployed contract
+    const BRTContractInstance = new Contract(BRTTokenAddress, BRTTokenAbi, customProvider);
+    // calls the getStakeByAddress function
+    const getUsersDetails = await BRTContractInstance.getStakeByAddress(checkStakeInput);
+    const userAmount = getUsersDetails.stakeAmount;
+    const userAddr = getUsersDetails.staker;
+    const stakedTime = getUsersDetails.time.toString();
+    const validity = getUsersDetails.valid;
+    let userFile = [];
+    let history = []
+    const obj =  {a: userAmount, b: stakedTime, c: userAddr, d: validity};
+    userFile.push(obj);
+
+    if(validity == true) {
+        userFile.forEach(data => {
+          history.unshift({
+            amount: data.a,
+            time: data.b.toString(),
+            user_Addr: data.c,
+            type: data.d,
+          })
+        })
+    
+        setCheckState(history);    
+    } else {
+      alert("Doesnt have a stake")
+    }
+
+
   }
 
   
@@ -220,17 +322,24 @@ function App() {
         <MyStake
           stakeInput = {stakeInput}
           withdrawInput = {withdrawInput}
+          checkStakeInput = {checkStakeInput}
           onChangeInput = {onChangeInput}
           onClickStake = {onClickStake}
           onClickWithdraw = {onClickWithdraw}
+          onClickCheckStake = {onClickCheckStake}
           stakeAmount = {stakeAmount}
           rewardAmount = {rewardAmount}
           connected = {connected}
 
         />
+         <DispStake
+          stakeItemData = {checkStakeHistory}
+        />
         <StakeHistory
           stakeData = {stateHistory}
         />
+
+       
       </main>
       <Footer />
     </div>
